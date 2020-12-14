@@ -120,7 +120,7 @@ There is a `db.sql` file included that will set these tables up with some data t
 
 
 # How to run the code
-- Since golang is a less common language, and difficult to install 1.14 which includes some nice features including golang modules, a docker setup has been provided to run the code in isolation. This can be run via `make run.docker` which will setup the DB in a docker container, and host the api in `http://localhost:8080/next`.
+- Since golang is a less common language, and difficult to install 1.14 which includes some nice features including golang modules, a docker setup has been provided to run the code in isolation. This can be run via `make run.docker` which will setup the DB in a docker container, and host the api in `http://localhost:8080/next`. To run in the background, you can run `make run.daemon.docker` and use the curl command in `example.md`
 
 # Design Decisions
 - Since this is a planning operation, it does not need to be extremely quick. However, all efforts were made to make it less DB heavy. To do that, I reduced the DB query complexity as much as possible, and moved as much logic as made sense into the program (which is easier to scale).
