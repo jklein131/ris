@@ -132,9 +132,11 @@ There is a `db.sql` file included that will set these tables up with some data t
 - Priority Lock
   - If priority rugs are always being submitted, and there isn't enough printers to fullfil the load, non-high priority rugs should "convert" into
     priority rugs if in the queue for over a set period of time (1-2 days). This can be done by adding the comparison in `HighestPriority` function.
-    ```golang if time.Now().Add(-time.Hour*24).After(r.OrderDate) || time.Now().Add(-time.Hour*24).After(l.OrderDate) {
+    ```golang
+    if time.Now().Add(-time.Hour*24).After(r.OrderDate) || time.Now().Add(-time.Hour*24).After(l.OrderDate) {
 	 	return r.OrderDate.After(l.OrderDate)
-	 }```
+    }
+    ```
 - Optimal Fabric Usage
   - Waste is an important metric when calculating cost, right now the rug planning uses a priority based approach based on order, it should also take into consideration how much material is wasted on a non-planned print. I wrote a simple planner (`UseRugBlocks`) which will optimally determine how many blocks can be printed to best accommodate the space of the rug. For example, if a rug of size 9 is submitted to the `/next` endpoint, it could be fullfiled by 3*3x5 rugs (with zero wasted material) or 1*5x7 (with 2ft of wasted material). Optimal planning can reduce labor and material costs.
 - Unfulfilled order timeout
