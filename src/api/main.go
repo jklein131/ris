@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,6 +38,7 @@ type RugBlocks struct {
 	SevenFeet int
 }
 
+// PrintJSON a simple helper functions to print objects to the output writer
 func PrintJSON(obj interface{}, w http.ResponseWriter) {
 	jsonEncoder := json.NewEncoder(w)
 	jsonEncoder.SetIndent("", " ")
@@ -47,6 +49,7 @@ func PrintJSON(obj interface{}, w http.ResponseWriter) {
 	}
 }
 
+// UseRugBlocks NOT IN USE, but demonstrates a particular algorithm for roll planning.
 func UseRugBlocks(length float64) (blocks RugBlocks, remainder float64) {
 	// we're going to take 3ft sections until the remainder length is divisible by 7,
 	// or if we're taking over half of the rug, area,
@@ -127,6 +130,7 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 	includeRush := true
 	var err error
 	newDecorder := json.NewDecoder(r.Body)
+
 	nextReq := NextRequest{}
 	newDecorder.DisallowUnknownFields()
 	err = newDecorder.Decode(&nextReq)
@@ -140,6 +144,7 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 	// Since we cannot print on rug fragments, that is wasted material, so lets take the floor
 	// of that value to make the numbers easier.
 	nextReq.RollLength = math.Floor(nextReq.RollLength)
+	log.Println(fmt.Sprintf("received request for rug size %v rush: %v", nextReq.RollLength, nextReq.IncludeRush))
 
 	// The smallest length rug we can print is 3ft, so we cannot accept rug fragments less then 3ft
 	if nextReq.RollLength <= 3 {
@@ -287,26 +292,31 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 	sql := `UPDATE component
 	SET status = 'Printing'
 	WHERE id in ($1`
-	componentIds := []interface{}{}
-	for i, p := range printPlots {
-		componentIds = append(componentIds, p.ComponentID)
-		if i != 0 {
-			sql = sql + ",$" + strconv.Itoa(i+1)
+	if len(printPlots) > 0 {
+		componentIds := []interface{}{}
+		for i, p := range printPlots {
+			componentIds = append(componentIds, p.ComponentID)
+			if i != 0 {
+				sql = sql + ",$" + strconv.Itoa(i+1)
+			}
+		}
+		// We have a result here, so let's mark these components as scheduled to print.
+		_, err = tx.Exec(ctx, sql+")", componentIds...)
+		if err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			PrintJSON(map[string]string{
+				"error": "database error " + err.Error(),
+			}, w)
+			return
 		}
 	}
-	// We have a result here, so let's mark these components as scheduled to print.
-	_, err = tx.Exec(ctx, sql+")", componentIds...)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		PrintJSON(map[string]string{
-			"error": "database error " + err.Error(),
-		}, w)
-		return
-	}
+
 	_ = tx.Commit(ctx)
 
 	/* print the roll to the user*/
 	result := RugOutput{
+		RollID: rand.Int(), // This should be replaced in the future, but in my opinion a restructuring of the database is required to
+		// store this data in a more queryable format. I did not want to make any changes to the DB schema for this assignment.
 		Plan:       printPlots,
 		RollLength: float64(queuedLength),
 	}
