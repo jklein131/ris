@@ -311,7 +311,14 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_ = tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		PrintJSON(map[string]string{
+			"error": "database error " + err.Error(),
+		}, w)
+		return
+	}
 
 	/* print the roll to the user*/
 	result := RugOutput{
