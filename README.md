@@ -218,4 +218,3 @@ This simulation is limited and does not include key features which would exist i
 
 There are lots of configurable options for the API that will affect how the planning is completed. Each configurable option can greatly change the output of the planner, both in time and waste and resources as a tradeoff. This is where AI algorithms such as linear regression (choosing the most optimal variables in a mx+b format to get the best results) can be used with the simulation to optimize on these parameters.
 
-# Missing edge cases
