@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	database       = &pgx.Conn{}
-	fullRollLength = float64(0)
+	database = &pgx.Conn{}
 )
 
 type RugOutput struct {
@@ -150,8 +149,18 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
+	// To protect our DB from overquery and bad input, let's set an upper max to rug size.
+	if nextReq.RollLength > 500 {
+		w.WriteHeader(http.StatusBadRequest)
+		PrintJSON(map[string]string{
+			"error": "roll length is required and must be between 3ft and 500ft",
+		}, w)
+		return
+	}
 	// lets see what kind of volume we have in here, this will allow us to pick the rugs to order and choose area or runner rugs
 	// this is a quick inventory heuristic to determine what's available.
+	// We need to begin a transaction here so that the rows are locked for edit by us, and other processes using this DB will not
+	// be able to set these rugs as status complete.
 	tx, err := database.BeginTx(context.Background(), pgx.TxOptions{})
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -160,7 +169,10 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
-	largePlots, err := GetRugBucketOfSize(tx, ctx, "5x7", int(math.Floor(nextReq.RollLength/7))+1, includeRush)
+	// We should pull the next orders of max would fill up the roll of one type. This can be converted into one database query with UNION
+	// This is overquery, but should be quicker then doing the same operations in PSQL for slightly higher transfer times.
+	// the rolls are small enough to be neglegable. For larger rolls, this might become a problem.
+	largePlots, err := GetRugBucketOfSize(tx, ctx, "5x7", int(math.Ceil(nextReq.RollLength/7))+1, includeRush)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		PrintJSON(map[string]string{
@@ -168,7 +180,7 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
-	runnerPlots, err := GetRugBucketOfSize(tx, ctx, "2.5x7", int(math.Ceil(nextReq.RollLength/7))*2, includeRush)
+	runnerPlots, err := GetRugBucketOfSize(tx, ctx, "2.5x7", int(math.Ceil(nextReq.RollLength/7))+1*2, includeRush)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		PrintJSON(map[string]string{
@@ -176,7 +188,7 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
-	smallPlots, err := GetRugBucketOfSize(tx, ctx, "3x5", int(math.Ceil(nextReq.RollLength/3)), includeRush)
+	smallPlots, err := GetRugBucketOfSize(tx, ctx, "3x5", int(math.Ceil(nextReq.RollLength/3))+1, includeRush)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		PrintJSON(map[string]string{
@@ -186,8 +198,9 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// if piece supplied is a fragment, let's see if we can calculate the ramaining space. Ideality this would be a heuristic value
-	printPlots := RugBucket{}
 	// we don't have a perfect fit of rug blocks, so let's do the algorithm presented in the project.
+
+	printPlots := RugBucket{}
 	// take high priority items first, and then order by date. We can check from the 3 queues for this.
 	largeIterator := 0
 	runnerIterator := 0
@@ -268,6 +281,9 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		position = position + 1
 		printPlots = append(printPlots, top)
 	}
+
+	// Since we overqueried, we need to patch SQL to tell them which rows we have accepted.
+	// This method of args is good for <1000 args, which I think we would be able to accept.
 	sql := `UPDATE component
 	SET status = 'Printing'
 	WHERE id in ($1`
@@ -279,7 +295,14 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// We have a result here, so let's mark these components as scheduled to print.
-	tx.Exec(ctx, sql+")", componentIds...)
+	_, err = tx.Exec(ctx, sql+")", componentIds...)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		PrintJSON(map[string]string{
+			"error": "database error " + err.Error(),
+		}, w)
+		return
+	}
 	_ = tx.Commit(ctx)
 
 	/* print the roll to the user*/

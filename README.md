@@ -119,15 +119,14 @@ There is a `db.sql` file included that will set these tables up with some data t
 - Please upload your code to Github and share the link with us.
 
 
-# Algorithm Approach
-
-# Planning algorithm (Not Implimented)
- We're first going to figure out the best print profile given the length suggested. We essentially have two lengths, 7 and 3.
- 5*7 and 2.5x7|2.5x7 are both 7ft, and 3x5 is the only odd shape, so a specific priority must be given to 3ft lengths to
- minimize wasted material.
+# How to run the code
+- Since golang is a less common language, and difficult to install 1.14 which includes some nice features including golang modules, a docker setup has been provided to run the code in isolation. This can be run via `make run.docker` which will setup the DB in a docker container, and host the api in `http://localhost:8080/next`.
 
 # Design Decisions
-- Since this is a planning operation, it does not to be extremely quick
+- Since this is a planning operation, it does not need to be extremely quick. However, all efforts were made to make it less DB heavy. To do that, I reduced the DB query complexity as much as possible, and moved as much logic as made sense into the program (which is easier to scale).
+- Postgres was used as the database because its what I'm familiar with, is open source and has good options for deploy on AWS/GCP.
+- Golang was the language of choice used for the core algorithm. Although I am familiar with node, I prefer golang for web API operations because of performance, explicit declarations of features and operation, types, web tools and familiarity. This could just have easily been done with Node, but I have less experience with the packages used in Node.
+
 
 # Missing features from the Algorithm
 - Priority Lock
@@ -142,7 +141,6 @@ There is a `db.sql` file included that will set these tables up with some data t
   - As listed below, printer failure is a hard edgecase, there should be an unfulfilled order timeout, where if an order has been scheduled to a roll, but not been confirmed printed or fullfilled, it should be rescheduled within a certain amount of time.
 - Order Neighboring
   - To save on packaging and transportation costs, orders with the same destination address should all be printed around the same time in the same factory.
--
 
 # Edge Cases
 - Printer Failure
@@ -161,13 +159,63 @@ There is a `db.sql` file included that will set these tables up with some data t
   - How long does it take for a rug to be printed after an order is received?
 - No Information about users/accounts/permissions, who authorized the request, who has permission to cancel said job and why.
 
-
-
 # Observability and Stability
-- This application has limited observability into what it's doing, and it's status.
+- This application has limited observability into what it's doing, and it's status. Simple logging was added.
+- For a production ready applicaiton, some better observability into what the API is doing would be needed such as prometheus.
+- Deploy was not created for this app, but a health endpoint, and some other management tools should be added to make changes while the service is running.
+- Logs should be shipped to a log aggregator and alerts can be setup to provide stability.
 
 # Testing and Simulation
 
+Testing is very important to understanding how an API would function, and make sure that it functions correctly in the real world. Unit tests can be a great way to test if individual functions and programs work, but they do not cover the operation of the API "in the wild". Simulation bridges this gap, by simulating how resources interact with eachother, and identify use-cases and edge cases based on "real" data. Simulation software is primarily limited to python for scientific use. SimPy is a process-based discrete-event simulation framework which can model which uses python generation to do a time-idependent simulation. We can use simpy to generate data, impersonate a user, manage resources, and gauge performance and accuracy. For this Project, I created a simple simulation which does not generate data, but impersonates a printer asking for print jobs.
+
+### Benifits of Simulation
+
+Simulation offers huge benifits, there are a few buisness based operations where we can use simulation to make buisness decisions:
+- How many printers do I need?
+  - Using simulation, we can simulate order frequency, and growth, and model out how many printers we need to satisfy load. This can give us a good estimate the optimal number of printers we need. This can save money as printers are not over-purchased.
+- What kind of load clogs up my system?
+  - Using simulation, you can generate uncharacteristic load and see how the system responds. What if a runner rug drops and sales of runner's doubles. We can use simulation to model the characteristics of this load, and see if we can handle and optomise it.
+- Does a new algorithm perform better or worse?
+  - Simulation can also be used within the development pipeline to determine the cost/benifits tradeoff of a new planning algorithm. A well defined simulation can produce quantifyable results about how the algorithm effects lead times.
+- Seasonal load
+  - Simulation can also use historical data, and simulate potential problems and offer solutions.
+
+Example Run:
+```bash
+$ make sim.docker
+[....docker setup.....]
+python3 sim/sim.py
+Printer 0 starts up
+Printer 0 starts printing job of length 13 on 17
+|---| 2.5x7 |---|
+|3x5|-------|3x5|
+|---| 2.5x7 |---|
+Printer 0 completed printing job of length 13
+Printer 0 created a rug segment of size 2
+Printer 0 starts printing job of length 7 on 15
+| 2.5x7 |
+|-------|
+|       |
+Printer 0 completed printing job of length 7
+Printer 0 created a rug segment of size 8
+wasted material (ft): 5.5
+```
+
+The example above shows a basic run of the simulation, and you can already see from this simple example how there are potential optimizations. Since we're using a greedy time based algorithm, orders are processed in the order they are received, not making an effort to reduce waste. As we can see, we might use a 3x5 rug, when a 5x7 or 2*2.5x7 could be used in it's place. Also, printing runners without a partner is a 3.5 ft waste, if we understand how runners are ordered, we can potentially wait a set period of time for another runner to be ordered. We could also change targeted advertizing to get people to order a runner (or pre-print one).
+
+### Limitations of the Simulation
+
+This simulation is limited and does not include key features which would exist if I had more time:
+- No way to generate orders.
+- No way to generate orders from historical data.
+- No way to simulate breaks/unforeseen consequences.
+- No way to calcualte how long it takes rugs to be delivered since order time.
+- No way to simulate restocking and inventory.
+- No way to simulate workers.
+
+### Next Steps
+
+There are lots of configurable options for the API that will affect how the planning is completed. Each configurable option can greatly change the output of the planner, both in time and waste and resources as a tradeoff. This is where AI algorithms such as linear regression (choosing the most optimal variables in a mx+b format to get the best results) can be used with the simulation to optimize on these parameters.
+
 # Missing edge cases
-
-

@@ -19,14 +19,14 @@ RANDOM_SEED = 42
 NUM_MACHINES = 1  # Number of printers in the factory
 T_INTER = 7       # Create a order every ~7 minutes
 SIM_TIME = 100     # Simulation time in minutes
-BUNDLE_LENGTH_FT = 20
+BUNDLE_LENGTH_FT = 15
 
 class RugFactory(object):
     """A factory has a limited number of printers (``NUM_MACHINES``) to
     print in parallel.
 
     Printers will request a job from the print server, and will print. Printers have an unlimited supply of rug bundles of a set
-    length (100ft). If a job requested less material then requested, then a rug fragment will be created. This rug fragment will be used
+    length (20ft). If a job requested less material then requested, then a rug fragment will be created. This rug fragment will be used
     on the next request to the print server, if the rug fragment cannot be used, it will be discarded. The rug fragmet is owned by the printer.
 
 
