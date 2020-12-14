@@ -138,7 +138,6 @@ func NextHandler(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
-	fmt.Println(nextReq.RollLength)
 	// Since we cannot print on rug fragments, that is wasted material, so lets take the floor
 	// of that value to make the numbers easier.
 	nextReq.RollLength = math.Floor(nextReq.RollLength)

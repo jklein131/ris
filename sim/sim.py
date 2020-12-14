@@ -19,7 +19,7 @@ RANDOM_SEED = 42
 NUM_MACHINES = 1  # Number of printers in the factory
 T_INTER = 7       # Create a order every ~7 minutes
 SIM_TIME = 100     # Simulation time in minutes
-BUNDLE_LENGTH_FT = 10
+BUNDLE_LENGTH_FT = 20
 
 class RugFactory(object):
     """A factory has a limited number of printers (``NUM_MACHINES``) to
@@ -44,7 +44,7 @@ class RugFactory(object):
             "include_rush": True
         })
         if r.status_code == 200:
-            return r.json()["length"]
+            return r.json()
         if r.status_code == 406: # not acceptable.
             return -1
         return 0
@@ -57,6 +57,44 @@ class RugFactory(object):
         self.trash_material+=length
         yield env.timeout(1) # it takes 1 minutes to trash a segment
 
+def print_plan(plan):
+    top = "|"
+    mid = "|"
+    bot = "|"
+    strip = False
+    waste = 0
+    for p in plan:
+        if p["component_size"]  == "2.5x7" and strip:
+            top += " 2.5x7 |"
+            mid += "-------|"
+            bot += " 2.5x7 |"
+            strip = False
+            continue
+        if strip:
+            top += " 2.5x7 |"
+            mid += "-------|"
+            bot += "       |"
+            waste += 3.5
+
+        if p["component_size"] == "3x5":
+            top += "---|"
+            mid += "3x5|"
+            bot += "---|"
+        if p["component_size"] == "5x7":
+            top += "-------|"
+            mid += "  5x7  |"
+            bot += "-------|"
+        if p["component_size"] == "2.5x7":
+            strip = True
+    if strip:
+        top += " 2.5x7 |"
+        mid += "-------|"
+        bot += "       |"
+        waste += 3.5
+    print(top)
+    print(mid)
+    print(bot)
+    return waste
 
 
 def printer(env, name, rug_factory):
@@ -76,23 +114,27 @@ def printer(env, name, rug_factory):
             length = rug_fragments.pop()
         pj = rug_factory.request_print_job(length)
         # if the print job has zero length, there is nothing to print. Wait a minute and try again.
-        if pj == 0:
-            yield env.timeout(1)
-            continue
+
         if pj == -1:
             # throw away this segment, it's been rejected
             yield env.process(rug_factory.trash(length))
             continue
+        if pj["length"] == 0:
+            yield env.timeout(1)
+            continue
         # At this block, we have received a valid job.
-        print(name + ' starts printing job of length '+ str(pj) + ' on ' + str(length))
-        yield env.timeout(random.randint(pj - 2, pj + 2))
-        print(name + ' completed printing job of length '+ str(pj))
+        print(name + ' starts printing job of length '+ str(pj["length"]) + ' on ' + str(length))
+        waste = print_plan(pj["plan"])
+        if waste != 0:
+            yield env.process(rug_factory.trash(waste))
+        yield env.timeout(random.randint(pj["length"] - 2, pj["length"] + 2))
+        print(name + ' completed printing job of length '+ str(pj["length"]))
         # We should save some statistics about the rug, and how long it took to print.
 
         # if there is a rug segment, add it to the local queue to be used on the next request
-        if length-pj != 0:
-            print(name + ' created a rug segment of size ' + str(length-pj))
-            rug_fragments.append(length-pj)
+        if length-pj["length"] != 0:
+            print(name + ' created a rug segment of size ' + str(length-pj["length"]))
+            rug_fragments.append(length-pj["length"])
         # We then fall out of the loop, and request a new print job from the factory
 
 def setup(env, factory, num_machines, t_inter):
