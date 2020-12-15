@@ -189,7 +189,7 @@ $ make sim.docker
 [....docker setup.....]
 python3 sim/sim.py
 Printer 0 starts up
-Printer 0 starts printing job of length 13 on 17
+Printer 0 starts printing job of length 13 on 15
 |---| 2.5x7 |---|
 |3x5|-------|3x5|
 |---| 2.5x7 |---|
