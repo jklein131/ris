@@ -183,6 +183,7 @@ Simulation offers huge benifits, there are a few buisness based operations where
 - Seasonal load
   - Simulation can also use historical data, and simulate potential problems and offer solutions.
 
+to run the simulator you must install `pip install simpy`. I did not create a docker build for this. 
 Example Run:
 ```bash
 $ make sim.docker
